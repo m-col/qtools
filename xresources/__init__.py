@@ -1,0 +1,1 @@
+from .xresources import get
