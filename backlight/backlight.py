@@ -34,27 +34,30 @@ class Backlight(Notifier):
         Notifier.__init__(self, **config)
         self.add_defaults(Backlight.defaults)
 
-        if os.path.isfile(self.path):
-            self.brightness = self.read()
-        else:
+        if not os.path.isfile(self.path):
             logger.error('Path passed to Backlight plugin is invalid')
             self.path = '/dev/null'
-            self.brightness = 0
 
-    def read(self):
+    @property
+    def brightness(self):
         with open(self.path, 'r') as f:
             return int(f.read())
 
-    def write(self, string):
+    @brightness.setter
+    def brightness(self, value):
+        if value > 100:
+            value = 100
+        elif value < 0:
+            value = 0
+        elif value % self.interval:
+            value = self.interval * round(value / self.interval)
+
         with open(self.path, 'w') as f:
-            f.write(string)
-        self.update(string)
-        self.show()
+            f.write(str(value))
+        self.show(value)
 
     def inc_brightness(self, qtile=None):
-        self.brightness = min(self.brightness + self.interval, 100)
-        self.write(str(self.brightness))
+        self.brightness += self.interval
 
     def dec_brightness(self, qtile=None):
-        self.brightness = max(self.brightness - self.interval, 0)
-        self.write(str(self.brightness))
+        self.brightness -= self.interval
