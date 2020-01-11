@@ -23,9 +23,16 @@ except ImportError:
 from qtools import Notifier
 
 
+bodies = {
+    'pause': 'Paused',
+    'play': 'Playing',
+    'stop': 'Stopped',
+}
+
+
 def _client_func(func):
     @wraps(func)
-    def _inner(self, qtile):
+    def _inner(self, qtile=None):
         try:
             self.client.connect()
         except ConnectionError:
@@ -60,10 +67,9 @@ class Client(Notifier):
     def toggle(self):
         if self.client.status()['state'] == 'play':
             self.client.pause()
-            return 'Paused'
         else:
             self.client.play()
-            return 'Playing'
+        return bodies.get(self.client.status()['state'])
 
     @_client_func
     def next(self):
