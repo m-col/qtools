@@ -7,7 +7,7 @@ import xcffib
 import xcffib.xproto
 
 
-def get(DISPLAY, defaults={}):
+def get(DISPLAY, defaults=None):
     """
     Get the X resources in an X servers resource manager.
 
@@ -15,7 +15,7 @@ def get(DISPLAY, defaults={}):
     ==========
     DISPLAY : str
         DISPLAY name to query.
-    
+
     defaults : dict (optional)
         Default values to act as a fallback for missing values or in the event of a
         failed connection.
@@ -31,7 +31,7 @@ def get(DISPLAY, defaults={}):
     try:
         conn = xcffib.connect(display=DISPLAY)
     except xcffib.ConnectionException:
-        return defaults
+        return defaults if defaults else {}
 
     root = conn.get_setup().roots[0].root
     atom = conn.core.InternAtom(False, 16, 'RESOURCE_MANAGER').reply().atom

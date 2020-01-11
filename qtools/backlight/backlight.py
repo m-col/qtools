@@ -19,7 +19,10 @@ from qtools import Notifier
 
 
 class Backlight(Notifier):
-
+    """
+    This class controls screen backlight by directly reading and writing to the
+    backlight device file in /sys.
+    """
     defaults = [
         ('summary', 'Backlight', 'Notification summary.'),
         ('interval', 10, 'Percentage interval by which to change backlight'),

@@ -26,21 +26,22 @@ class Volume(Notifier):
         ('mixer', 'Master', 'ALSA mixer to control.'),
         ('interval', 5, 'Percentage interval to change volume by.'),
     ]
+
     def __init__(self, **config):
         Notifier.__init__(self, **config)
         self.add_defaults(Volume.defaults)
 
     def increase(self, qtile=None):
         volume = self._run(f'{self.interval}%+')
-        self.show(self.interval * round(volume/self.interval))
+        self.show(self.interval * round(volume / self.interval))
 
     def decrease(self, qtile=None):
         volume = self._run(f'{self.interval}%-')
-        self.show(self.interval * round(volume/self.interval))
+        self.show(self.interval * round(volume / self.interval))
 
     def toggle(self, qtile=None):
         volume = self._run('toggle')
-        self.show(self.interval * round(volume/self.interval))
+        self.show(self.interval * round(volume / self.interval))
 
     def mute(self, qtile=None):
         self._run('mute')

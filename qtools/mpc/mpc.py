@@ -13,6 +13,7 @@ Example usage:
     }.items()])
 
 """
+# pylint: disable=no-member
 
 from functools import wraps
 
@@ -55,6 +56,7 @@ class Client(Notifier):
         ('host', '127.0.0.1', 'IP address of MPD server.'),
         ('port', '6600', 'Port of MPD server.'),
     ]
+
     def __init__(self, **config):
         Notifier.__init__(self, **config)
         self.add_defaults(Client.defaults)
