@@ -28,9 +28,12 @@ class Notifier(Configurable):
             Notifier._is_initted = True
             Notify.init('Qtile')
 
-        Configurable.__init__(self)
+        Configurable.__init__(self, **config)
         self.add_defaults(Notifier.defaults)
-        self._notifier = None
+        self.notifier = Notify.Notification.new(
+            config.get('summary', 'Notifier'), ''
+        )
+        self.timeout = config.get('timeout', -1)
 
     def __getattr__(self, name):
         """
@@ -42,21 +45,19 @@ class Notifier(Configurable):
         return Configurable.__getattr__(self, name)
 
     @property
-    def notifier(self):
-        if self._notifier is None:
-            self._notifier = Notify.Notification.new(self.summary, '')
-            self._notifier.set_timeout(self.timeout)
-        return self._notifier
+    def timeout(self):
+        return self._timeout
 
-    def set_timeout(self, timeout):
-        self.notifier.set_timeout(timeout)
-        self.timeout = timeout
+    @timeout.setter
+    def timeout(self, value):
+        self.notifier.set_timeout(value)
+        self._timeout = value
 
-    def show(self):
+    def show(self, body):
+        if not isinstance(body, str):
+            body = str(body)
+        self.notifier.update(self.summary, body)
         self.notifier.show()
 
     def hide(self):
         self.notifier.hide()
-
-    def update(self, body):
-        self.notifier.update(self.summary, body)

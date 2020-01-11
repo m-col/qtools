@@ -22,6 +22,7 @@ from qtools import Notifier
 
 class Volume(Notifier):
     defaults = [
+        ('summary', 'Volume', 'Notification summary.'),
         ('mixer', 'Master', 'ALSA mixer to control.'),
         ('interval', 5, 'Percentage interval to change volume by.'),
     ]
@@ -62,6 +63,8 @@ class Volume(Notifier):
 
         if len(stdout) == 5:
             volume = int(stdout[4].decode().split()[3][1:-2])
-        elif len(stdout) == 6:
+        elif len(stdout) == 7:
             volume = int(stdout[5].decode().split()[4][1:-2])
+        else:
+            logger.warning('Output from amixer needs decoding')
         return volume

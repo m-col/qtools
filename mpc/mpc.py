@@ -30,8 +30,7 @@ def _client_func(func):
             self.client.connect()
         except ConnectionError:
             pass
-        self.update(func(self))
-        self.show()
+        self.show(func(self))
         self.client.disconnect()
     return _inner
 
