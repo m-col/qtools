@@ -46,6 +46,8 @@ class Searx(Notifier):
         ('theme', None, 'rofi theme to use.'),
         ('launcher', 'tor-browser --allow-remote {url}', 'Command used to open web '
                      'browser. Requires {url} to place the search url.'),
+        ('notify_on_remove', True, 'Whether to make a notification when removing a '
+                                   'searx instance.'),
     ]
 
     def __init__(self, **config):
@@ -88,6 +90,8 @@ class Searx(Notifier):
             if self.instances_file:
                 self.instances.append(f'#{self.last_used}')
                 self.save_instances()
+            if self.notify_on_remove:
+                self.show(self.last_used)
             self.last_used = None
 
     def load_instances(self, qtile=None):

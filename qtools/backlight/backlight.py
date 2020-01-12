@@ -13,9 +13,13 @@ Example usage:
 """
 
 import os
+import time
 
 from libqtile.log_utils import logger
 from qtools import Notifier
+
+
+_transition = 80
 
 
 class Backlight(Notifier):
@@ -26,6 +30,7 @@ class Backlight(Notifier):
     defaults = [
         ('summary', 'Backlight', 'Notification summary.'),
         ('interval', 10, 'Percentage interval by which to change backlight'),
+        ('smooth', True, 'Whether to smoothly change brightness level.'),
         (
             'path',
             '/sys/class/backlight/nv_backlight/brightness',
@@ -36,31 +41,45 @@ class Backlight(Notifier):
     def __init__(self, **config):
         Notifier.__init__(self, **config)
         self.add_defaults(Backlight.defaults)
+        self.transition = _transition / self.interval / 1000
 
         if not os.path.isfile(self.path):
             logger.error('Path passed to Backlight plugin is invalid')
             self.path = '/dev/null'
 
-    @property
-    def brightness(self):
+    def inc_brightness(self, qtile=None):
+        self.change(1)
+
+    def dec_brightness(self, qtile=None):
+        self.change(-1)
+
+    def change(self, direction):
+        start = self.get_brightness()
+        end = self.check_value(start + self.interval * direction)
+        self.show(end)
+
+        if self.smooth:
+            for i in range(
+                start + direction,
+                end + direction,
+                direction
+            ):
+                with open(self.path, 'w') as f:
+                    f.write(str(i))
+                time.sleep(self.transition)
+        else:
+            with open(self.path, 'w') as f:
+                f.write(str(end))
+
+    def get_brightness(self):
         with open(self.path, 'r') as f:
             return int(f.read())
 
-    @brightness.setter
-    def brightness(self, value):
+    def check_value(self, value):
         if value > 100:
             value = 100
         elif value < 0:
             value = 0
         elif value % self.interval:
             value = self.interval * round(value / self.interval)
-
-        with open(self.path, 'w') as f:
-            f.write(str(value))
-        self.show(value)
-
-    def inc_brightness(self, qtile=None):
-        self.brightness += self.interval
-
-    def dec_brightness(self, qtile=None):
-        self.brightness -= self.interval
+        return value
