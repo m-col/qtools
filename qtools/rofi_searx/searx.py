@@ -91,7 +91,7 @@ class Searx(Notifier):
                 self.instances.append(f'#{self.last_used}')
                 self.save_instances()
             if self.notify_on_remove:
-                self.show(self.last_used)
+                self.show(f'Removed: {self.last_used}')
             self.last_used = None
 
     def load_instances(self, qtile=None):
