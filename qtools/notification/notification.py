@@ -17,9 +17,8 @@ Example usage:
 from xcffib.xproto import StackMode
 
 from libqtile import configurable, pangocffi, window
-from libqtile.command import lazy
+from libqtile.lazy import lazy
 from libqtile.notify import notifier
-from libqtile.log_utils import logger
 from libqtile.drawer import Drawer
 
 
@@ -40,6 +39,7 @@ class Popup:
         self.win = win
         self.drawer = drawer
         self.layout = layout
+        self.id = None
 
 
 class Server(configurable.Configurable):
@@ -53,6 +53,7 @@ class Server(configurable.Configurable):
         - overflow
         - spacing between lines
         - replace_id
+        - notifications moving up to first position if possible
     """
 
     defaults = [
@@ -102,6 +103,7 @@ class Server(configurable.Configurable):
         configurable.Configurable.__init__(self, **config)
         self.add_defaults(Server.defaults)
         self.qtile = None
+        self._popups = []
         self._hidden = []
         self._shown = []
         self._queue = []
@@ -140,12 +142,16 @@ class Server(configurable.Configurable):
         if self.border_width:
             self.border = [self.qtile.color_pixel(c) for c in self.border]
         for win in range(self.max_windows):
-            self._hidden.append(self._create_window(win))
+            popup = self._create_window(win)
+            self._popups.append(popup)
+            self._hidden.append(popup)
 
         notifier.register(self._notify)
 
     def _create_window(self, win):
         """
+        Get a Popup instance to maintain a window, drawer and textlayout with a specific
+        configuration.
         """
         win = window.Internal.create(
             self.qtile,
@@ -167,7 +173,6 @@ class Server(configurable.Configurable):
             markup=True,
         )
         layout.layout.set_alignment(ALIGNMENTS[self.text_alignment])
-        #drawer.clear(self.background[1])  # is this necessary?
 
         if self.border_width:
             win.window.configure(borderwidth=self.border_width)
@@ -201,7 +206,11 @@ class Server(configurable.Configurable):
         received via dbus. They will either be drawn now or queued to be drawn soon.
         """
         if self._hidden:
-            self._send(notif, self._hidden.pop(0))
+            for popup in self._popups:
+                if popup in self._hidden:
+                    break
+            self._hidden.remove(popup)
+            self._send(notif, popup)
         else:
             self._queue.append(notif)
 
@@ -229,19 +238,23 @@ class Server(configurable.Configurable):
         popup.win.unhide()
         popup.drawer.draw()
         popup.win.window.configure(stackmode=StackMode.Above)
+        popup.id = notif.id
 
         if notif.timeout is None or notif.timeout < 0:
             timeout = self.timeout[urgency]
         else:
             timeout = notif.timeout
         if timeout > 0:
-            self.qtile.call_later(timeout / 1000, self._close, popup)
+            self.qtile.call_later(timeout / 1000, self._close, popup, notif.id)
         self._shown.append(popup)
 
-    def _close(self, popup):
+    def _close(self, popup, nid=None):
         """
         Close the specified Popup instance.
         """
+        if nid is not None and popup.id != nid:
+            return
+
         if popup in self._shown:
             self._shown.remove(popup)
             if self._queue:
