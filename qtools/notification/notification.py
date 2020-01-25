@@ -33,7 +33,7 @@ class Server(configurable.Configurable):
     TODO:
         - overflow
         - spacing between lines
-        - replace_id
+
     """
     defaults = [
         ('format', '{summary}\n{body}', 'Text format.'),
@@ -71,18 +71,20 @@ class Server(configurable.Configurable):
             'How to deal with too much text: extend_x, extend_y or trim.',
         ),
         ('max_windows', 2, 'Maximum number of windows to show at once.'),
-        ('gap', 18, 'Vertical gap between popup windows.'),
+        ('gap', 12, 'Vertical gap between popup windows.'),
     ]
 
     def __init__(self, **config):
         configurable.Configurable.__init__(self, **config)
         self.add_defaults(Server.defaults)
         self.qtile = None
-        self._popups = []
         self._hidden = []
         self._shown = []
         self._queue = []
         self._positions = []
+        self._scroll_popup = None
+        self._current_id = 0
+        self._notif_id = None
 
         self._make_attr_list('foreground')
         self._make_attr_list('background')
@@ -130,19 +132,35 @@ class Server(configurable.Configurable):
 
         for win in range(self.max_windows):
             popup = Popup(self.qtile, **self._popup_config)
-            self._popups.append(popup)
+            popup.win.handle_ButtonPress = self._buttonpress(popup)
+            popup.replaces_id = None
             self._hidden.append(popup)
             self._positions.append(
-                (self.x, self.y + win * (self.height + self.border_width * 3 + self.gap))
+                (self.x, self.y + win * (self.height + 2 * self.border_width +
+                 self.gap))
             )
 
         notifier.register(self._notify)
+
+    def _buttonpress(self, popup):
+        def _(event):
+            if event.detail == 1:
+                self._close(popup)
+        return _
 
     def _notify(self, notif):
         """
         This method is registered with the NotificationManager to handle notifications
         received via dbus. They will either be drawn now or queued to be drawn soon.
         """
+        if notif.replaces_id:
+            for popup in self._shown:
+                if notif.replaces_id == popup.replaces_id:
+                    self._shown.remove(popup)
+                    self._send(notif, popup)
+                    self._reposition()
+                    return
+
         if self._hidden:
             self._send(notif, self._hidden.pop())
         else:
@@ -160,7 +178,11 @@ class Server(configurable.Configurable):
             body = pangocffi.markup_escape_text(notif.body)
         urgency = notif.hints.get('urgency', 1)
 
-        popup.x, popup.y = self._positions[len(self._shown)]
+        self._current_id += 1
+        popup.id = self._current_id
+        if popup not in self._shown:
+            self._shown.append(popup)
+        popup.x, popup.y = self._positions[len(self._shown) - 1]
         popup.background = self.background[urgency]
         popup.foreground = self.foreground[urgency]
         popup.text = self.format.format(summary=summary, body=body)
@@ -171,30 +193,36 @@ class Server(configurable.Configurable):
         popup.place()
         popup.unhide()
         popup.draw_window()
-        popup.id = notif.id
+        popup.replaces_id = notif.replaces_id
 
         if notif.timeout is None or notif.timeout < 0:
             timeout = self.timeout[urgency]
         else:
             timeout = notif.timeout
         if timeout > 0:
-            self.qtile.call_later(timeout / 1000, self._close, popup, notif.id)
-        self._shown.append(popup)
+            self.qtile.call_later(
+                timeout / 1000, self._close, popup, self._current_id
+            )
 
     def _close(self, popup, nid=None):
         """
         Close the specified Popup instance.
         """
         if popup in self._shown:
-            self._shown.remove(popup)
             if nid is not None and popup.id != nid:
                 return
+            self._shown.remove(popup)
+            if self._scroll_popup is popup:
+                self._scroll_popup = None
+                self._notif_id = None
             popup.hide()
             if self._queue:
                 self._send(self._queue.pop(0), popup)
             else:
                 self._hidden.append(popup)
+        self._reposition()
 
+    def _reposition(self):
         for index, shown in enumerate(self._shown):
             shown.x, shown.y = self._positions[index]
             shown.place()
@@ -211,11 +239,31 @@ class Server(configurable.Configurable):
         Close all popup windows.
         """
         self._queue.clear()
-        for popup in self._shown:
-            self._close(popup)
+        while self._shown:
+            self._close(self._shown[0])
 
-    #def prev(self, qtile=None):
-    #    self._notify(notifier.notifications[self._current_id])
+    def prev(self, qtile=None):
+        if notifier.notifications:
+            if self._scroll_popup is None:
+                if self._hidden:
+                    self._scroll_popup = self._hidden.pop(0)
+                else:
+                    self._scroll_popup = self._shown[0]
+                self._notif_id = len(notifier.notifications)
+            if self._notif_id > 0:
+                self._notif_id -= 1
+            self._send(
+                notifier.notifications[self._notif_id],
+                self._scroll_popup,
+            )
 
-    #def next(self, qtile=None):
-    #    self._notify(notifier.notifications[self._current_id])
+    def next(self, qtile=None):
+        if self._scroll_popup:
+            if self._notif_id < len(notifier.notifications) - 1:
+                self._notif_id += 1
+            if self._scroll_popup in self._shown:
+                self._shown.remove(self._scroll_popup)
+            self._send(
+                notifier.notifications[self._notif_id],
+                self._scroll_popup,
+            )
