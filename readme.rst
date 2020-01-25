@@ -10,8 +10,11 @@ Aims:
     - Avoiding extra dependencies.
 
 
+Bases
+-----
+
 Notifiers
----------
+`````````
 
 :code:`Notifier`-based plugins expose methods that trigger notifications, with
 the purpose of being bound to keys.
@@ -35,6 +38,14 @@ keys.
 :code:`qtools.Notifier` in :code:`qtools/__init__.py`.
 
 
+Popups
+``````
+
+The :code:`Popup` class can be used to create and control popup windows, such
+as tooltips or notifications. For an example see the :code:`notification`
+plugin.
+
+
 Plugin list
 -----------
 
@@ -44,6 +55,8 @@ Module          Description
 amixer          Notifier that controls an ALSA device's volume
 
 backlight       Notifier that controls backlight level
+
+notification    A fully functional notification server
 
 mpc             Notifier that controls MPD
 
