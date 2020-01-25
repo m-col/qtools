@@ -7,6 +7,7 @@ import gi
 gi.require_version('Notify', '0.7')
 from gi.repository import Notify
 
+from random import randint
 from xcffib.xproto import StackMode
 
 from libqtile import configurable, pangocffi, window
@@ -37,6 +38,7 @@ class Notifier(configurable.Configurable):
             config.get('summary', 'Notifier'), ''
         )
         self.timeout = config.get('timeout', -1)
+        self.id = randint(10, 100)
 
     def __getattr__(self, name):
         """
@@ -60,6 +62,8 @@ class Notifier(configurable.Configurable):
         if not isinstance(body, str):
             body = str(body)
         self.notifier.update(self.summary, body)
+        if hasattr(self, 'id'):
+            self.notifier.set_property('id', self.id)
         self.notifier.show()
 
     def hide(self):
@@ -130,6 +134,8 @@ class Popup(configurable.Configurable):
         self.y = self.win.y
         self.width = self.win.width
         self.height = self.win.height
+        if not self.border_width:
+            self.border = None
 
     def _handle_Expose(self, e):
         pass
