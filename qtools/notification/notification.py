@@ -14,32 +14,13 @@ Example usage:
 """
 
 
-from xcffib.xproto import StackMode
-
 from libqtile import configurable, pangocffi, window
 from libqtile.lazy import lazy
 from libqtile.notify import notifier
 from libqtile.drawer import Drawer
+from libqtile.log_utils import logger
 
-
-ALIGNMENTS = {
-    'left': pangocffi.pango.PANGO_ALIGN_LEFT,
-    'center': pangocffi.pango.PANGO_ALIGN_CENTER,
-    'right': pangocffi.pango.PANGO_ALIGN_RIGHT,
-}
-
-
-class Popup:
-    """
-    These represent a single pop-up window. These are (re)cycled, so if we have a
-    maximum of two windows visible at once, we keep two of these and re-draw and present
-    them.
-    """
-    def __init__(self, win, drawer, layout):
-        self.win = win
-        self.drawer = drawer
-        self.layout = layout
-        self.id = None
+from qtools import Popup
 
 
 class Server(configurable.Configurable):
@@ -53,15 +34,17 @@ class Server(configurable.Configurable):
         - overflow
         - spacing between lines
         - replace_id
-        - notifications moving up to first position if possible
     """
-
     defaults = [
-        ('x', 96, 'X position of notifications.'),
-        ('y', 96, 'Y position of notifications.'),
-        ('width', 256, 'Width of notifications.'),
-        ('height', 64, 'Height of notifications.'),
+        ('format', '{summary}\n{body}', 'Text format.'),
         ('opacity', 1.0, 'Opacity of notifications.'),
+        ('border_width', 4, 'Line width of drawn borders.'),
+        ('corner_radius', None, 'Corner radius for round corners, or None.'),
+        ('font', 'sans', 'Font used in notifications.'),
+        ('fontsize', 14, 'Size of font.'),
+        ('fontshadow', None, 'Color for text shadows, or None for no shadows.'),
+        ('padding', None, 'Padding at sides of text.'),
+        ('text_alignment', 'left', 'Text alignment: left, center or right.'),
         (
             'foreground',
             ('#ffffff', '#ffffff', '#ffffff'),
@@ -77,14 +60,6 @@ class Server(configurable.Configurable):
             ('#111111', '#111111', '#111111'),
             'Border colours in ascending order of urgency. Or None for none.',
         ),
-        ('border_width', 4, 'Line width of drawn borders.'),
-        ('corner_radius', None, 'Corner radius for round corners, or None.'),
-        ('font', 'sans', 'Font used in notifications.'),
-        ('fontsize', 14, 'Size of font.'),
-        ('fontshadow', None, 'Color for text shadows, or None for no shadows.'),
-        ('padding', None, 'Padding at sides of text.'),
-        ('format', '{summary}\n{body}', 'Text format.'),
-        ('text_alignment', 'left', 'Text alignment: left, center or right.'),
         (
             'timeout',
             (5000, 5000, 0),
@@ -107,6 +82,7 @@ class Server(configurable.Configurable):
         self._hidden = []
         self._shown = []
         self._queue = []
+        self._positions = []
 
         self._make_attr_list('foreground')
         self._make_attr_list('background')
@@ -133,7 +109,7 @@ class Server(configurable.Configurable):
     def configure(self, qtile):
         """
         This method needs to be called to set up the Server with the Qtile manager and
-        reorganise some configuration options.
+        create the required popup windows.
         """
         self.qtile = qtile
 
@@ -141,64 +117,26 @@ class Server(configurable.Configurable):
             self.padding = self.fontsize / 2
         if self.border_width:
             self.border = [self.qtile.color_pixel(c) for c in self.border]
+
+        self._popup_config = {}
+        for opt in Popup.defaults:
+            key = opt[0]
+            if hasattr(self, key):
+                value = getattr(self, key)
+                if isinstance(value, (tuple, list)):
+                    self._popup_config[key] = value[1]
+                else:
+                    self._popup_config[key] = value
+
         for win in range(self.max_windows):
-            popup = self._create_window(win)
+            popup = Popup(self.qtile, **self._popup_config)
             self._popups.append(popup)
             self._hidden.append(popup)
-
-        notifier.register(self._notify)
-
-    def _create_window(self, win):
-        """
-        Get a Popup instance to maintain a window, drawer and textlayout with a specific
-        configuration.
-        """
-        win = window.Internal.create(
-            self.qtile,
-            self.x,
-            self.y + (self.height + self.gap) * win,
-            self.width, self.height,
-            self.opacity,
-        )
-        drawer = Drawer(
-            self.qtile, win.window.wid, self.width, self.height,
-        )
-        layout = drawer.textlayout(
-            text='',
-            colour=self.foreground[1],
-            font_family=self.font,
-            font_size=self.fontsize,
-            font_shadow=self.fontshadow,
-            wrap=True if self.overflow == 'extend_y' else False,
-            markup=True,
-        )
-        layout.layout.set_alignment(ALIGNMENTS[self.text_alignment])
-
-        if self.border_width:
-            win.window.configure(borderwidth=self.border_width)
-        if self.corner_radius:
-            win.window.round_corners(
-                self.width, self.height, self.corner_radius, self.border_width,
+            self._positions.append(
+                (self.x, self.y + win * (self.height + self.border_width * 3 + self.gap))
             )
 
-        popup = Popup(win, drawer, layout)
-        win.handle_Expose = self._handle_Expose
-        win.handle_KeyPress = self._handle_KeyPress
-        win.handle_ButtonPress = self._get_popup_ButtonPress(popup)
-        self.qtile.windows_map[win.window.wid] = win
-        return popup
-
-    def _handle_Expose(self, e):
-        pass
-
-    def _handle_KeyPress(self, event):
-        pass
-
-    def _get_popup_ButtonPress(self, popup):
-        def _inner(event):
-            if event.detail == 1:
-                self._close(popup)
-        return _inner
+        notifier.register(self._notify)
 
     def _notify(self, notif):
         """
@@ -206,11 +144,7 @@ class Server(configurable.Configurable):
         received via dbus. They will either be drawn now or queued to be drawn soon.
         """
         if self._hidden:
-            for popup in self._popups:
-                if popup in self._hidden:
-                    break
-            self._hidden.remove(popup)
-            self._send(notif, popup)
+            self._send(notif, self._hidden.pop())
         else:
             self._queue.append(notif)
 
@@ -224,20 +158,19 @@ class Server(configurable.Configurable):
             summary = pangocffi.markup_escape_text(notif.summary)
         if notif.body:
             body = pangocffi.markup_escape_text(notif.body)
-        text = self.format.format(summary=summary, body=body)
         urgency = notif.hints.get('urgency', 1)
 
-        popup.drawer.clear(self.background[urgency])
-        popup.layout.colour = self.foreground[urgency]
-        popup.layout.text = text
-        popup.layout.draw(
-            self.padding, (popup.win.height - popup.layout.height) / 2,
-        )
+        popup.x, popup.y = self._positions[len(self._shown)]
+        popup.background = self.background[urgency]
+        popup.foreground = self.foreground[urgency]
+        popup.text = self.format.format(summary=summary, body=body)
+        popup.clear()
+        popup.draw_text()
         if self.border_width:
-            popup.win.window.set_attribute(borderpixel=self.border[urgency])
-        popup.win.unhide()
-        popup.drawer.draw()
-        popup.win.window.configure(stackmode=StackMode.Above)
+            popup.set_border(self.border[urgency])
+        popup.place()
+        popup.unhide()
+        popup.draw_window()
         popup.id = notif.id
 
         if notif.timeout is None or notif.timeout < 0:
@@ -252,24 +185,34 @@ class Server(configurable.Configurable):
         """
         Close the specified Popup instance.
         """
-        if nid is not None and popup.id != nid:
-            return
-
         if popup in self._shown:
             self._shown.remove(popup)
+            if nid is not None and popup.id != nid:
+                return
+            popup.hide()
             if self._queue:
                 self._send(self._queue.pop(0), popup)
             else:
-                popup.win.hide()
                 self._hidden.append(popup)
+
+        for index, shown in enumerate(self._shown):
+            shown.x, shown.y = self._positions[index]
+            shown.place()
 
     def close(self, qtile=None):
         """
-        This method can be bound to keys to close the oldest of any visible notification
-        windows.
+        Close the oldest of all visible popup windows.
         """
         if self._shown:
             self._close(self._shown[0])
+
+    def close_all(self, qtile=None):
+        """
+        Close all popup windows.
+        """
+        self._queue.clear()
+        for popup in self._shown:
+            self._close(popup)
 
     #def prev(self, qtile=None):
     #    self._notify(notifier.notifications[self._current_id])
