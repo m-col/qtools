@@ -30,6 +30,10 @@ class Server(configurable.Configurable):
     string which will then be used for all urgencies. The timeout and border options can
     be set in the same way.
 
+    The max_windows option limits how many popup windows can be drawn at a time. When
+    more notifications are recieved while the maximum number are already drawn,
+    notifications are queued and displayed when existing notifications are closed.
+
     TODO:
         - overflow
         - spacing between lines
@@ -37,16 +41,6 @@ class Server(configurable.Configurable):
     """
     defaults = [
         ('format', '{summary}\n{body}', 'Text format.'),
-        ('opacity', 1.0, 'Opacity of notifications.'),
-        ('border_width', 4, 'Line width of drawn borders.'),
-        ('corner_radius', None, 'Corner radius for round corners, or None.'),
-        ('font', 'sans', 'Font used in notifications.'),
-        ('fontsize', 14, 'Size of font.'),
-        ('fontshadow', None, 'Color for text shadows, or None for no shadows.'),
-        ('padding', None, 'Padding at sides of text.'),
-        ('text_alignment', 'left', 'Text alignment: left, center or right.'),
-        ('max_windows', 2, 'Maximum number of windows to show at once.'),
-        ('gap', 12, 'Vertical gap between popup windows.'),
         (
             'foreground',
             ('#ffffff', '#ffffff', '#ffffff'),
@@ -67,11 +61,23 @@ class Server(configurable.Configurable):
             (5000, 5000, 0),
             'Millisecond timeout duration, in ascending order of urgency.',
         ),
+        ('opacity', 1.0, 'Opacity of notifications.'),
+        ('border_width', 4, 'Line width of drawn borders.'),
+        ('corner_radius', None, 'Corner radius for round corners, or None.'),
+        ('font', 'sans', 'Font used in notifications.'),
+        ('fontsize', 14, 'Size of font.'),
+        ('fontshadow', None, 'Color for text shadows, or None for no shadows.'),
+        ('text_alignment', 'left', 'Text alignment: left, center or right.'),
+        ('horizonal_padding', None, 'Padding at sides of text.'),
+        ('vertical_padding', None, 'Padding at top and bottom of text.'),
+        ('line_spacing', None, 'Space between lines. If None, the drawer decides.'),
         (
             'overflow',
-            'trim',
-            'How to deal with too much text: extend_x, extend_y or trim.',
+            'more_width',
+            'How to deal with too much text: more_width, more_height, or truncate.',
         ),
+        ('max_windows', 2, 'Maximum number of windows to show at once.'),
+        ('gap', 12, 'Vertical gap between popup windows.'),
     ]
 
     def __init__(self, **config):
@@ -116,8 +122,10 @@ class Server(configurable.Configurable):
         """
         self.qtile = qtile
 
-        if self.padding is None:
-            self.padding = self.fontsize / 2
+        if self.horizontal_padding is None:
+            self.horizontal_padding = self.fontsize / 2
+        if self.vertical_padding is None:
+            self.vertical_padding = self.fontsize / 2
         if self.border_width:
             self.border = [self.qtile.color_pixel(c) for c in self.border]
 
@@ -175,14 +183,8 @@ class Server(configurable.Configurable):
         """
         Draw the desired notification using the specified Popup instance.
         """
-        summary = None
-        body = None
-        if notif.summary:
-            summary = pangocffi.markup_escape_text(notif.summary)
-        if notif.body:
-            body = pangocffi.markup_escape_text(notif.body)
+        text = self._get_text(notif)
         urgency = notif.hints.get('urgency', 1)
-
         self._current_id += 1
         popup.id = self._current_id
         if popup not in self._shown:
@@ -190,9 +192,15 @@ class Server(configurable.Configurable):
         popup.x, popup.y = self._positions[len(self._shown) - 1]
         popup.background = self.background[urgency]
         popup.foreground = self.foreground[urgency]
-        popup.text = self.format.format(summary=summary, body=body)
         popup.clear()
-        popup.draw_text()
+        if self.line_spacing:
+            for num, line in enumerate(text.split('\n')):
+                popup.text = line
+                y = self.vertical_padding + num * (popup.layout.height + self.line_spacing)
+                popup.draw_text(y=y)
+        else:
+            popup.text = text
+            popup.draw_text()
         if self.border_width:
             popup.set_border(self.border[urgency])
         popup.place()
@@ -208,6 +216,18 @@ class Server(configurable.Configurable):
             self.qtile.call_later(
                 timeout / 1000, self._close, popup, self._current_id
             )
+
+    def _get_text(self, notif):
+        summary = ''
+        body = ''
+        app_name = ''
+        if notif.summary:
+            summary = pangocffi.markup_escape_text(notif.summary)
+        if notif.body:
+            body = pangocffi.markup_escape_text(notif.body)
+        if notif.app_name:
+            app_name = pangocffi.markup_escape_text(notif.app_name)
+        return self.format.format(summary=summary, body=body, app_name=app_name)
 
     def _close(self, popup, nid=None):
         """

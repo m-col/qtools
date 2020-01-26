@@ -91,7 +91,8 @@ class Popup(configurable.Configurable):
         ('font', 'sans', 'Font used in notifications.'),
         ('fontsize', 14, 'Size of font.'),
         ('fontshadow', None, 'Color for text shadows, or None for no shadows.'),
-        ('padding', None, 'Padding at sides of text.'),
+        ('horizontal_padding', None, 'Padding at sides of text.'),
+        ('vertical_padding', None, 'Padding at top and bottom of text.'),
         ('text_alignment', 'left', 'Text alignment: left, center or right.'),
     ]
 
@@ -171,10 +172,10 @@ class Popup(configurable.Configurable):
     def clear(self):
         self.drawer.clear(self.background)
 
-    def draw_text(self):
+    def draw_text(self, x=None, y=None):
         self.layout.draw(
-            self.padding,
-            (self.win.height - self.layout.height) / 2,
+            x or self.horizontal_padding,
+            y or self.vertical_padding,
         )
 
     def draw_window(self):
