@@ -14,7 +14,7 @@ Example usage:
 """
 
 
-from libqtile import configurable, pangocffi, window
+from libqtile import configurable, images, pangocffi, window
 from libqtile.lazy import lazy
 from libqtile.notify import notifier
 from libqtile.drawer import Drawer
@@ -79,6 +79,7 @@ class Server(configurable.Configurable):
         ('max_windows', 2, 'Maximum number of windows to show at once.'),
         ('gap', 12, 'Vertical gap between popup windows.'),
         ('sticky_history', True, 'Disable timeout when browsing history.'),
+        ('icon_size', 36, 'Pixel size of any icons.'),
     ]
 
     def __init__(self, **config):
@@ -93,6 +94,7 @@ class Server(configurable.Configurable):
         self._current_id = 0
         self._notif_id = None
         self._paused = False
+        self._icons = {}
 
         self._make_attr_list('foreground')
         self._make_attr_list('background')
@@ -191,9 +193,20 @@ class Server(configurable.Configurable):
         if popup not in self._shown:
             self._shown.append(popup)
         popup.x, popup.y = self._positions[len(self._shown) - 1]
+        icon = self._load_icon(notif)
+
         popup.background = self.background[urgency]
         popup.foreground = self.foreground[urgency]
         popup.clear()
+
+        if icon:
+            popup.draw_image(
+                icon[0],
+                self.horizontal_padding,
+                1 + (self.height - icon[1]) / 2,
+            )
+            popup.horizontal_padding += self.icon_size + self.horizontal_padding / 2
+
         for num, line in enumerate(text.split('\n')):
             popup.text = line
             y = self.vertical_padding + num * (popup.layout.height + self.line_spacing)
@@ -204,6 +217,8 @@ class Server(configurable.Configurable):
         popup.unhide()
         popup.draw_window()
         popup.replaces_id = notif.replaces_id
+        if icon:
+            popup.horizontal_padding = self.horizontal_padding
 
         if timeout is None:
             if notif.timeout is None or notif.timeout < 0:
@@ -251,6 +266,23 @@ class Server(configurable.Configurable):
         for index, shown in enumerate(self._shown):
             shown.x, shown.y = self._positions[index]
             shown.place()
+
+    def _load_icon(self, notif):
+        if notif.app_icon:
+            if notif.app_icon in self._icons:
+                return self._icons.get(notif.app_icon)
+            else:
+                img = images.Img.from_path(notif.app_icon)
+                if img.width > img.height:
+                    img.resize(width=self.icon_size)
+                else:
+                    img.resize(height=self.icon_size)
+                self._icons[notif.app_icon] = _decode_image(
+                    img.bytes_img, img.width, img.height
+                )
+                return self._icons[notif.app_icon]
+        else:
+            return None
 
     def close(self, qtile=None):
         """
@@ -316,3 +348,12 @@ class Server(configurable.Configurable):
             self._paused = True
             while self._shown:
                 self._close(self._shown[0])
+
+
+def _decode_image(bytes_img, width, height):
+    try:
+        surface, _ = images._decode_to_image_surface(bytes_img, width, height)
+        return surface, surface.get_height()
+    except Exception as e:
+        logger.exception(f'Could not load notification icon')
+        return None
