@@ -70,7 +70,7 @@ class Server(configurable.Configurable):
         ('text_alignment', 'left', 'Text alignment: left, center or right.'),
         ('horizonal_padding', None, 'Padding at sides of text.'),
         ('vertical_padding', None, 'Padding at top and bottom of text.'),
-        ('line_spacing', None, 'Space between lines. If None, the drawer decides.'),
+        ('line_spacing', 4, 'Space between lines.'),
         (
             'overflow',
             'more_width',
@@ -78,6 +78,7 @@ class Server(configurable.Configurable):
         ),
         ('max_windows', 2, 'Maximum number of windows to show at once.'),
         ('gap', 12, 'Vertical gap between popup windows.'),
+        ('sticky_history', True, 'Disable timeout when browsing history.'),
     ]
 
     def __init__(self, **config):
@@ -179,7 +180,7 @@ class Server(configurable.Configurable):
         else:
             self._queue.append(notif)
 
-    def _send(self, notif, popup):
+    def _send(self, notif, popup, timeout=None):
         """
         Draw the desired notification using the specified Popup instance.
         """
@@ -193,14 +194,10 @@ class Server(configurable.Configurable):
         popup.background = self.background[urgency]
         popup.foreground = self.foreground[urgency]
         popup.clear()
-        if self.line_spacing:
-            for num, line in enumerate(text.split('\n')):
-                popup.text = line
-                y = self.vertical_padding + num * (popup.layout.height + self.line_spacing)
-                popup.draw_text(y=y)
-        else:
-            popup.text = text
-            popup.draw_text()
+        for num, line in enumerate(text.split('\n')):
+            popup.text = line
+            y = self.vertical_padding + num * (popup.layout.height + self.line_spacing)
+            popup.draw_text(y=y)
         if self.border_width:
             popup.set_border(self.border[urgency])
         popup.place()
@@ -208,10 +205,13 @@ class Server(configurable.Configurable):
         popup.draw_window()
         popup.replaces_id = notif.replaces_id
 
-        if notif.timeout is None or notif.timeout < 0:
+        if timeout is None:
+            if notif.timeout is None or notif.timeout < 0:
+                timeout = self.timeout[urgency]
+            else:
+                timeout = notif.timeout
+        elif timeout < 0:
             timeout = self.timeout[urgency]
-        else:
-            timeout = notif.timeout
         if timeout > 0:
             self.qtile.call_later(
                 timeout / 1000, self._close, popup, self._current_id
@@ -283,6 +283,7 @@ class Server(configurable.Configurable):
             self._send(
                 notifier.notifications[self._notif_id],
                 self._scroll_popup,
+                0 if self.sticky_history else None,
             )
 
     def next(self, qtile=None):
@@ -297,6 +298,7 @@ class Server(configurable.Configurable):
             self._send(
                 notifier.notifications[self._notif_id],
                 self._scroll_popup,
+                0 if self.sticky_history else None,
             )
 
     def pause(self, qtile=None):
