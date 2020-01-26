@@ -45,6 +45,8 @@ class Server(configurable.Configurable):
         ('fontshadow', None, 'Color for text shadows, or None for no shadows.'),
         ('padding', None, 'Padding at sides of text.'),
         ('text_alignment', 'left', 'Text alignment: left, center or right.'),
+        ('max_windows', 2, 'Maximum number of windows to show at once.'),
+        ('gap', 12, 'Vertical gap between popup windows.'),
         (
             'foreground',
             ('#ffffff', '#ffffff', '#ffffff'),
@@ -70,8 +72,6 @@ class Server(configurable.Configurable):
             'trim',
             'How to deal with too much text: extend_x, extend_y or trim.',
         ),
-        ('max_windows', 2, 'Maximum number of windows to show at once.'),
-        ('gap', 12, 'Vertical gap between popup windows.'),
     ]
 
     def __init__(self, **config):
@@ -85,6 +85,7 @@ class Server(configurable.Configurable):
         self._scroll_popup = None
         self._current_id = 0
         self._notif_id = None
+        self._paused = False
 
         self._make_attr_list('foreground')
         self._make_attr_list('background')
@@ -153,6 +154,10 @@ class Server(configurable.Configurable):
         This method is registered with the NotificationManager to handle notifications
         received via dbus. They will either be drawn now or queued to be drawn soon.
         """
+        if self._paused:
+            self._queue.append(notif)
+            return
+
         if notif.replaces_id:
             for popup in self._shown:
                 if notif.replaces_id == popup.replaces_id:
@@ -216,7 +221,7 @@ class Server(configurable.Configurable):
                 self._scroll_popup = None
                 self._notif_id = None
             popup.hide()
-            if self._queue:
+            if self._queue and not self._paused:
                 self._send(self._queue.pop(0), popup)
             else:
                 self._hidden.append(popup)
@@ -243,6 +248,9 @@ class Server(configurable.Configurable):
             self._close(self._shown[0])
 
     def prev(self, qtile=None):
+        """
+        Display the previous notification in the history.
+        """
         if notifier.notifications:
             if self._scroll_popup is None:
                 if self._hidden:
@@ -258,6 +266,9 @@ class Server(configurable.Configurable):
             )
 
     def next(self, qtile=None):
+        """
+        Display the next notification in the history.
+        """
         if self._scroll_popup:
             if self._notif_id < len(notifier.notifications) - 1:
                 self._notif_id += 1
@@ -267,3 +278,19 @@ class Server(configurable.Configurable):
                 notifier.notifications[self._notif_id],
                 self._scroll_popup,
             )
+
+    def pause(self, qtile=None):
+        """
+        Pause display of notifications on screen. Notifications will be queued and
+        presented as usual when this is called again.
+        """
+        if self._paused:
+            self._paused = False
+            queue = self._queue.copy()
+            self._queue.clear()
+            while queue:
+                self._notify(queue.pop(0))
+        else:
+            self._paused = True
+            while self._shown:
+                self._close(self._shown[0])
