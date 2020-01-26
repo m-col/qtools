@@ -94,6 +94,7 @@ class Popup(configurable.Configurable):
         ('horizontal_padding', None, 'Padding at sides of text.'),
         ('vertical_padding', None, 'Padding at top and bottom of text.'),
         ('text_alignment', 'left', 'Text alignment: left, center or right.'),
+        ('wrap', True, 'Whether to wrap text.'),
     ]
 
     def __init__(self, qtile, x=50, y=50, width=256, height=64, **config):
@@ -114,7 +115,7 @@ class Popup(configurable.Configurable):
             font_family=self.font,
             font_size=self.fontsize,
             font_shadow=self.fontshadow,
-            wrap=True,
+            wrap=self.wrap,
             markup=True,
         )
         self.layout.layout.set_alignment(ALIGNMENTS[self.text_alignment])
@@ -133,8 +134,6 @@ class Popup(configurable.Configurable):
 
         self.x = self.win.x
         self.y = self.win.y
-        self.width = self.win.width
-        self.height = self.win.height
         if not self.border_width:
             self.border = None
 
@@ -147,6 +146,24 @@ class Popup(configurable.Configurable):
     def _handle_ButtonPress(self, event):
         if event.detail == 1:
             self.hide()
+
+    @property
+    def width(self):
+        return self.win.width
+
+    @width.setter
+    def width(self, value):
+        self.win.width = value
+        self.drawer.width = value
+
+    @property
+    def height(self):
+        return self.win.height
+
+    @height.setter
+    def height(self, value):
+        self.win.height = value
+        self.drawer.height = value
 
     @property
     def text(self):
@@ -190,6 +207,14 @@ class Popup(configurable.Configurable):
     def unhide(self):
         self.win.unhide()
         self.win.window.configure(stackmode=StackMode.Above)
+
+    def draw_image(self, image, x, y):
+        """
+        Paint an image onto the window at point x, y. The image should be a surface e.g.
+        loaded from libqtile.images.Img.load_path.
+        """
+        self.drawer.ctx.set_source_surface(image, x, y)
+        self.drawer.ctx.paint()
 
     def hide(self):
         self.win.hide()
