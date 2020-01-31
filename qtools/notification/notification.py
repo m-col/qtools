@@ -14,7 +14,7 @@ Example usage:
 """
 
 
-from libqtile import configurable, images, pangocffi, window
+from libqtile import configurable, hook, images, pangocffi, window
 from libqtile.lazy import lazy
 from libqtile.notify import notifier
 from libqtile.drawer import Drawer
@@ -25,6 +25,16 @@ from qtools import Popup
 
 class Server(configurable.Configurable):
     """
+    This class provides a full graphical notification manager for the
+    org.freedesktop.Notifications service implemented in libqtile.notify.
+
+    Hints can be provided by notification clients to modify behaviour:
+        hint    behaviour
+
+    The format option determines what text is shown on the popup windows, and supports
+    markup and new line characters e.g. '<b>{summary}</b>\n{body}'. Available
+    placeholders are summary, body and app_name.
+
     Foreground and background colours can be specified either as tuples/lists of 3
     strings, corresponding to low, normal and critical urgencies, or just a single
     string which will then be used for all urgencies. The timeout and border options can
@@ -36,7 +46,12 @@ class Server(configurable.Configurable):
 
     TODO:
         - overflow
-        - spacing between lines
+        - select screen / follow mouse/keyboard focus
+        - critical notifications to replace any visible non-critical notifs immediately?
+        - icons position (left/right/None)
+        - hints: image-path, desktop-entry (for icon)
+        - hints: Server parameters set for single notification?
+        - hints: progress value e.g. int:value:42 with drawing
 
     """
     defaults = [
@@ -73,14 +88,17 @@ class Server(configurable.Configurable):
         ('line_spacing', 4, 'Space between lines.'),
         (
             'overflow',
-            'more_width',
+            'truncate',
             'How to deal with too much text: more_width, more_height, or truncate.',
         ),
         ('max_windows', 2, 'Maximum number of windows to show at once.'),
         ('gap', 12, 'Vertical gap between popup windows.'),
         ('sticky_history', True, 'Disable timeout when browsing history.'),
         ('icon_size', 36, 'Pixel size of any icons.'),
+        ('fullscreen', 'show', 'What to do when in fullscreen: show, hide, or queue.'),
     ]
+    capabilities = {'body', 'body-markup'}
+    # specification: https://developer.gnome.org/notification-spec/
 
     def __init__(self, **config):
         configurable.Configurable.__init__(self, **config)
@@ -152,7 +170,7 @@ class Server(configurable.Configurable):
                  self.gap))
             )
 
-        notifier.register(self._notify)
+        notifier.register(self._notify, Server.capabilities)
 
     def _buttonpress(self, popup):
         def _(event):
@@ -169,6 +187,13 @@ class Server(configurable.Configurable):
             self._queue.append(notif)
             return
 
+        if self.qtile.current_window.fullscreen and self.fullscreen != 'show':
+            if self.fullscreen == 'queue':
+                if self._unfullscreen not in hook.subscriptions:
+                    hook.subscribe.float_change(self._unfullscreen)
+                self._queue.append(notif)
+            return
+
         if notif.replaces_id:
             for popup in self._shown:
                 if notif.replaces_id == popup.replaces_id:
@@ -181,6 +206,24 @@ class Server(configurable.Configurable):
             self._send(notif, self._hidden.pop())
         else:
             self._queue.append(notif)
+
+    def _unfullscreen(self):
+        """
+        Begin displaying of queue notifications after leaving fullscreen.
+        """
+        if not self.qtile.current_window.fullscreen:
+            hook.unsubscribe.float_change(self._unfullscreen)
+            self._renotify()
+
+    def _renotify(self):
+        """
+        If we hold off temporarily on sending notifications and accumulate a queue, we
+        should use this to the queue through self._notify again.
+        """
+        queue = self._queue.copy()
+        self._queue.clear()
+        while queue:
+            self._notify(queue.pop(0))
 
     def _send(self, notif, popup, timeout=None):
         """
@@ -340,15 +383,11 @@ class Server(configurable.Configurable):
         """
         if self._paused:
             self._paused = False
-            queue = self._queue.copy()
-            self._queue.clear()
-            while queue:
-                self._notify(queue.pop(0))
+            self._renotify()
         else:
             self._paused = True
             while self._shown:
                 self._close(self._shown[0])
-
 
 def _decode_image(bytes_img, width, height):
     try:
