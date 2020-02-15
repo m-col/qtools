@@ -19,9 +19,6 @@ from libqtile.log_utils import logger
 from qtools import Notifier
 
 
-_transition = 80
-
-
 class Backlight(Notifier):
     """
     This class controls screen backlight by directly reading and writing to the
@@ -30,22 +27,27 @@ class Backlight(Notifier):
     defaults = [
         ('summary', 'Backlight', 'Notification summary.'),
         ('interval', 10, 'Percentage interval by which to change backlight'),
+        ('name', '/sys/class/backlight/nv_backlight', 'Full path to backlight device.'),
         ('smooth', True, 'Whether to smoothly change brightness level.'),
-        (
-            'path',
-            '/sys/class/backlight/nv_backlight/brightness',
-            'Full path to backlight device.'
-        ),
+        ('transition', 0.04, 'Step size in seconds when smoothly transitioning'),
     ]
 
     def __init__(self, **config):
         Notifier.__init__(self, **config)
         self.add_defaults(Backlight.defaults)
-        self.transition = _transition / self.interval / 1000
 
-        if not os.path.isfile(self.path):
+        if os.path.isdir(self.name):
+            self.file = os.path.join(self.name, 'brightness')
+            with open(os.path.join(self.name, 'max_brightness'), 'r') as f:
+                self.max = int(f.read())
+
+        else:
             logger.error('Path passed to Backlight plugin is invalid')
-            self.path = '/dev/null'
+            self.name = '/dev/null'
+            self.max = 100
+
+        self.interval = self.max * self.interval /100
+        self.smooth_step = int(self.max / 100)
 
     def inc_brightness(self, qtile=None):
         self.change(1)
@@ -56,30 +58,31 @@ class Backlight(Notifier):
     def change(self, direction):
         start = self.get_brightness()
         end = self.check_value(start + self.interval * direction)
-        self.show(end)
+        self.show(int(100 * end / self.max))
 
         if self.smooth:
             for i in range(
                 start + direction,
                 end + direction,
-                direction
+                direction * self.smooth_step,
             ):
-                with open(self.path, 'w') as f:
+                with open(self.file, 'w') as f:
                     f.write(str(i))
                 time.sleep(self.transition)
+                logger.warning('brightness')
         else:
-            with open(self.path, 'w') as f:
+            with open(self.file, 'w') as f:
                 f.write(str(end))
 
     def get_brightness(self):
-        with open(self.path, 'r') as f:
+        with open(self.file, 'r') as f:
             return int(f.read())
 
     def check_value(self, value):
-        if value > 100:
-            value = 100
+        if value > self.max:
+            value = self.max
         elif value < 0:
             value = 0
         elif value % self.interval:
             value = self.interval * round(value / self.interval)
-        return value
+        return int(value)
