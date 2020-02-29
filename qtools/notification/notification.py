@@ -14,11 +14,10 @@ Example usage:
 """
 
 
-from libqtile import configurable, hook, images, pangocffi, window
+from libqtile import configurable, hook, images, pangocffi
 from libqtile.lazy import lazy
-from libqtile.notify import notifier
-from libqtile.drawer import Drawer
 from libqtile.log_utils import logger
+from libqtile.notify import notifier
 
 from qtools import Popup
 
@@ -48,7 +47,6 @@ class Server(configurable.Configurable):
         - overflow
         - select screen / follow mouse/keyboard focus
         - critical notifications to replace any visible non-critical notifs immediately?
-        - icons position (left/right/None)
         - hints: image-path, desktop-entry (for icon)
         - hints: Server parameters set for single notification?
         - hints: progress value e.g. int:value:42 with drawing
@@ -337,10 +335,11 @@ class Server(configurable.Configurable):
                         img.resize(width=self.icon_size)
                     else:
                         img.resize(height=self.icon_size)
-                    self._icons[notif.app_icon] = _decode_image(
+                    surface, _ = images._decode_to_image_surface(
                         img.bytes_img, img.width, img.height
                     )
-                except (FileNotFoundError, libqtile.images.LoadingError) as e :
+                    self._icons[notif.app_icon] = surface, surface.get_height()
+                except (FileNotFoundError, images.LoadingError, IsADirectoryError) as e:
                     logger.exception(e)
                     self._icons[notif.app_icon] = None
                 return self._icons[notif.app_icon]
@@ -408,12 +407,3 @@ class Server(configurable.Configurable):
             self._paused = True
             while self._shown:
                 self._close(self._shown[0])
-
-
-def _decode_image(bytes_img, width, height):
-    try:
-        surface, _ = images._decode_to_image_surface(bytes_img, width, height)
-        return surface, surface.get_height()
-    except Exception as e:
-        logger.exception(f'Could not load notification icon')
-        return None
