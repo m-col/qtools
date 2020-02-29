@@ -3,13 +3,13 @@ Simple base classes that can be used for multiple plugins.
 """
 
 
+from random import randint
+
 import gi
 gi.require_version('Notify', '0.7')
 from gi.repository import Notify
 
-from random import randint
 from xcffib.xproto import StackMode
-
 from libqtile import configurable, pangocffi, window
 from libqtile.lazy import lazy
 from libqtile.drawer import Drawer

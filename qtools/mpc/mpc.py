@@ -13,7 +13,7 @@ Example usage:
     }.items()])
 
 """
-# pylint: disable=no-member
+# pylint: disable=no-member,redefined-builtin
 
 from functools import wraps
 

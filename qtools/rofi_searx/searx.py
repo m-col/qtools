@@ -45,7 +45,8 @@ class Searx(Notifier):
         ('prompt', 'Search the web', 'Prompt displayed by rofi.'),
         ('theme', None, 'rofi theme to use.'),
         ('launcher', 'tor-browser --allow-remote {url}', 'Command used to open web '
-                     'browser. Requires {url} to place the search url.'),
+                                                         'browser. Requires {url} to '
+                                                         'place the search url.'),
         ('notify_on_remove', True, 'Whether to make a notification when removing a '
                                    'searx instance.'),
     ]
@@ -66,9 +67,7 @@ class Searx(Notifier):
 
     def search(self, qtile=None):
         output = subprocess.run(
-            self.command,
-            stdout=subprocess.PIPE,
-            universal_newlines=True,
+            self.command, stdout=subprocess.PIPE, universal_newlines=True, check=False
         )
         if output.stdout and not output.returncode:
             if self.instances_file:

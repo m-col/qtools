@@ -153,24 +153,24 @@ class Server(configurable.Configurable):
         if self.border_width:
             self.border = [self.qtile.color_pixel(c) for c in self.border]
 
-        self._popup_config = {}
+        popup_config = {}
         for opt in Popup.defaults:
             key = opt[0]
             if hasattr(self, key):
                 value = getattr(self, key)
                 if isinstance(value, (tuple, list)):
-                    self._popup_config[key] = value[1]
+                    popup_config[key] = value[1]
                 else:
-                    self._popup_config[key] = value
+                    popup_config[key] = value
 
         for win in range(self.max_windows):
-            popup = Popup(self.qtile, **self._popup_config)
+            popup = Popup(self.qtile, **popup_config)
             popup.win.handle_ButtonPress = self._buttonpress(popup)
             popup.replaces_id = None
             self._hidden.append(popup)
             self._positions.append(
                 (self.x, self.y + win * (self.height + 2 * self.border_width +
-                 self.gap))
+                                         self.gap))
             )
 
         notifier.register(self._notify, Server.capabilities)
@@ -325,26 +325,24 @@ class Server(configurable.Configurable):
             shown.place()
 
     def _load_icon(self, notif):
-        if notif.app_icon:
-            if notif.app_icon in self._icons:
-                return self._icons.get(notif.app_icon)
-            else:
-                try:
-                    img = images.Img.from_path(notif.app_icon)
-                    if img.width > img.height:
-                        img.resize(width=self.icon_size)
-                    else:
-                        img.resize(height=self.icon_size)
-                    surface, _ = images._decode_to_image_surface(
-                        img.bytes_img, img.width, img.height
-                    )
-                    self._icons[notif.app_icon] = surface, surface.get_height()
-                except (FileNotFoundError, images.LoadingError, IsADirectoryError) as e:
-                    logger.exception(e)
-                    self._icons[notif.app_icon] = None
-                return self._icons[notif.app_icon]
-        else:
+        if not notif.app_icon:
             return None
+        if notif.app_icon in self._icons:
+            return self._icons.get(notif.app_icon)
+        try:
+            img = images.Img.from_path(notif.app_icon)
+            if img.width > img.height:
+                img.resize(width=self.icon_size)
+            else:
+                img.resize(height=self.icon_size)
+            surface, _ = images._decode_to_image_surface(
+                img.bytes_img, img.width, img.height
+            )
+            self._icons[notif.app_icon] = surface, surface.get_height()
+        except (FileNotFoundError, images.LoadingError, IsADirectoryError) as e:
+            logger.exception(e)
+            self._icons[notif.app_icon] = None
+        return self._icons[notif.app_icon]
 
     def close(self, qtile=None):
         """

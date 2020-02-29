@@ -44,58 +44,64 @@ class Volume(Notifier):
             self.mute_master = False
 
     def increase(self, qtile=None):
-        stdout = self._run(['set', self.mixer, f'{self.interval}%+'])
-        volume = self._get_volume(stdout)
+        stdout = _run(['set', self.mixer, f'{self.interval}%+'])
+        volume = _get_volume(stdout)
         self.show(self.interval * round(volume / self.interval))
 
     def decrease(self, qtile=None):
-        stdout = self._run(['set', self.mixer, f'{self.interval}%-'])
-        volume = self._get_volume(stdout)
+        stdout = _run(['set', self.mixer, f'{self.interval}%-'])
+        volume = _get_volume(stdout)
         self.show(self.interval * round(volume / self.interval))
 
     def toggle(self, qtile=None):
-        stdout = self._run(['set', 'Master' if self.mute_master else self.mixer, 'toggle'])
-        if self._get_mute(stdout):
+        stdout = _run(
+            ['set', 'Master' if self.mute_master else self.mixer, 'toggle']
+        )
+        if _get_mute(stdout):
             self.show('Muted')
         else:
             if self.mute_master:
-                stdout = self._run(['get', self.mixer])
-            volume = self._get_volume(stdout)
+                stdout = _run(['get', self.mixer])
+            volume = _get_volume(stdout)
             self.show(self.interval * round(volume / self.interval))
 
     def mute(self, qtile=None):
-        self._run(['set', 'Master' if self.mute_master else self.mixer, 'mute'])
+        _run(['set', 'Master' if self.mute_master else self.mixer, 'mute'])
         self.show('Muted')
 
     def unmute(self, qtile=None):
-        stdout = self._run(
-            ['set', 'Master' if self.mute_master else self.mixer, 'unmute']
-        )
-        volume = self._get_volume(self._run(['get', self.mixer]))
+        _run(['set', 'Master' if self.mute_master else self.mixer, 'unmute'])
+        volume = _get_volume(_run(['get', self.mixer]))
         self.show(self.interval * round(volume / self.interval))
 
-    def _get_mute(self, stdout):
-        if len(stdout) == 5:
-            if stdout[4].decode().split()[5][1:-1] == 'on':
-                return False
-            else:
-                return True
-        logger.warning('Output from amixer needs decoding')
 
-    def _get_volume(self, stdout):
-        if len(stdout) == 5:
-            return int(stdout[4].decode().split()[3][1:-2])
-        if len(stdout) == 7:
-            return int(stdout[5].decode().split()[4][1:-2])
+def _get_mute(stdout):
+    if len(stdout) == 5:
+        if stdout[4].decode().split()[5][1:-1] == 'on':
+            muted = False
+        else:
+            muted = True
+    else:
+        muted = False
         logger.warning('Output from amixer needs decoding')
+    return muted
 
-    def _run(self, args):
-        cmd = ['amixer']
-        cmd.extend(args)
-        try:
-            output = subprocess.run(cmd, stdout=subprocess.PIPE)
-            stdout = output.stdout.splitlines()
-        except subprocess.CalledProcessError as err:
-            logger.error(err.output.decode())
-            return
-        return stdout
+def _get_volume(stdout):
+    if (stdlen:=len(stdout)) == 5:
+        vol = int(stdout[4].decode().split()[3][1:-2])
+    elif stdlen == 7:
+        vol = int(stdout[5].decode().split()[4][1:-2])
+    else:
+        logger.warning('Output from amixer needs decoding')
+        vol = 0
+    return vol
+
+def _run(args):
+    cmd = ['amixer']
+    cmd.extend(args)
+    try:
+        output = subprocess.run(cmd, stdout=subprocess.PIPE, check=False)
+    except subprocess.CalledProcessError as err:
+        logger.error(err.output.decode())
+        return ''
+    return output.stdout.splitlines()
