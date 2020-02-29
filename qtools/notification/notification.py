@@ -55,6 +55,10 @@ class Server(configurable.Configurable):
 
     """
     defaults = [
+        ('x', 32, 'x position on screen to start drawing notifications.'),
+        ('y', 64, 'y position on screen to start drawing notifications.'),
+        ('width', 192, 'Width of notifications.'),
+        ('height', 64, 'Height of notifications.'),
         ('format', '{summary}\n{body}', 'Text format.'),
         (
             'foreground',
@@ -96,6 +100,7 @@ class Server(configurable.Configurable):
         ('sticky_history', True, 'Disable timeout when browsing history.'),
         ('icon_size', 36, 'Pixel size of any icons.'),
         ('fullscreen', 'show', 'What to do when in fullscreen: show, hide, or queue.'),
+        ('screen', 'focus', 'How to select a screen: focus, mouse, or an int.'),
     ]
     capabilities = {'body', 'body-markup'}
     # specification: https://developer.gnome.org/notification-spec/
@@ -187,12 +192,13 @@ class Server(configurable.Configurable):
             self._queue.append(notif)
             return
 
-        if self.qtile.current_window.fullscreen and self.fullscreen != 'show':
-            if self.fullscreen == 'queue':
-                if self._unfullscreen not in hook.subscriptions:
-                    hook.subscribe.float_change(self._unfullscreen)
-                self._queue.append(notif)
-            return
+        if self.qtile.current_window and self.qtile.current_window.fullscreen:
+            if self.fullscreen != 'show':
+                if self.fullscreen == 'queue':
+                    if self._unfullscreen not in hook.subscriptions:
+                        hook.subscribe.float_change(self._unfullscreen)
+                    self._queue.append(notif)
+                return
 
         if notif.replaces_id:
             for popup in self._shown:
@@ -235,7 +241,7 @@ class Server(configurable.Configurable):
         popup.id = self._current_id
         if popup not in self._shown:
             self._shown.append(popup)
-        popup.x, popup.y = self._positions[len(self._shown) - 1]
+        popup.x, popup.y = self._get_coordinates()
         icon = self._load_icon(notif)
 
         popup.background = self.background[urgency]
@@ -287,6 +293,16 @@ class Server(configurable.Configurable):
             app_name = pangocffi.markup_escape_text(notif.app_name)
         return self.format.format(summary=summary, body=body, app_name=app_name)
 
+    def _get_coordinates(self):
+        x, y = self._positions[len(self._shown) - 1]
+        if isinstance(self.screen, int):
+            screen = self.qtile.screens[self.screen]
+        elif self.screen == 'focus':
+            screen = self.qtile.current_screen
+        elif self.screen == 'mouse':
+            screen = self.qtile.find_screen(*self.qtile.mouse_position)
+        return x + screen.x, y + screen.y
+
     def _close(self, popup, nid=None):
         """
         Close the specified Popup instance.
@@ -315,14 +331,18 @@ class Server(configurable.Configurable):
             if notif.app_icon in self._icons:
                 return self._icons.get(notif.app_icon)
             else:
-                img = images.Img.from_path(notif.app_icon)
-                if img.width > img.height:
-                    img.resize(width=self.icon_size)
-                else:
-                    img.resize(height=self.icon_size)
-                self._icons[notif.app_icon] = _decode_image(
-                    img.bytes_img, img.width, img.height
-                )
+                try:
+                    img = images.Img.from_path(notif.app_icon)
+                    if img.width > img.height:
+                        img.resize(width=self.icon_size)
+                    else:
+                        img.resize(height=self.icon_size)
+                    self._icons[notif.app_icon] = _decode_image(
+                        img.bytes_img, img.width, img.height
+                    )
+                except (FileNotFoundError, libqtile.images.LoadingError) as e :
+                    logger.exception(e)
+                    self._icons[notif.app_icon] = None
                 return self._icons[notif.app_icon]
         else:
             return None
@@ -388,6 +408,7 @@ class Server(configurable.Configurable):
             self._paused = True
             while self._shown:
                 self._close(self._shown[0])
+
 
 def _decode_image(bytes_img, width, height):
     try:
