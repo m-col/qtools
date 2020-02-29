@@ -91,8 +91,8 @@ class Popup(configurable.Configurable):
         ('font', 'sans', 'Font used in notifications.'),
         ('fontsize', 14, 'Size of font.'),
         ('fontshadow', None, 'Color for text shadows, or None for no shadows.'),
-        ('horizontal_padding', None, 'Padding at sides of text.'),
-        ('vertical_padding', None, 'Padding at top and bottom of text.'),
+        ('horizontal_padding', 0, 'Padding at sides of text.'),
+        ('vertical_padding', 0, 'Padding at top and bottom of text.'),
         ('text_alignment', 'left', 'Text alignment: left, center or right.'),
         ('wrap', True, 'Whether to wrap text.'),
     ]
