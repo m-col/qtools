@@ -3,16 +3,20 @@ Simple base classes that can be used for multiple plugins.
 """
 
 
+import os
 from random import randint
 
 import gi
+gi.require_version('Gst', '1.0')
+from gi.repository import Gst
 gi.require_version('Notify', '0.7')
 from gi.repository import Notify
 
 from xcffib.xproto import StackMode
-from libqtile import configurable, pangocffi, window
-from libqtile.lazy import lazy
 from libqtile.drawer import Drawer
+from libqtile.lazy import lazy
+from libqtile.log_utils import logger
+from libqtile import configurable, pangocffi, window
 
 
 class Notifier(configurable.Configurable):
@@ -25,6 +29,7 @@ class Notifier(configurable.Configurable):
     defaults = [
         ('summary', 'Notifier', 'Notification summary.'),
         ('timeout', -1, 'Timeout for notifications.'),
+        ('sound', None, 'Sound to make when sending notification'),
     ]
 
     def __init__(self, **config):
@@ -38,7 +43,10 @@ class Notifier(configurable.Configurable):
             config.get('summary', 'Notifier'), ''
         )
         self.timeout = config.get('timeout', -1)
-        self.id = randint(10, 100)
+        self.id = randint(10, 1000)
+
+        if self.sound is not None:
+            self.sound = os.path.expanduser(self.sound)
 
     def __getattr__(self, name):
         """
@@ -65,9 +73,30 @@ class Notifier(configurable.Configurable):
         if hasattr(self, 'id'):
             self.notifier.set_property('id', self.id)
         self.notifier.show()
+        if self.sound is not None:
+            play_sound(self.sound)
 
     def hide(self):
         self.notifier.hide()
+
+
+Gst.init(None)
+
+def play_sound(path):
+    """
+    Play an audio file. This accepts a full path to an audio file. This is mostly a
+    snippet from the playsound library.
+    """
+    playbin = Gst.ElementFactory.make('playbin', 'playbin')
+    playbin.props.uri = 'file://' + path
+
+    set_result = playbin.set_state(Gst.State.PLAYING)
+    if set_result == Gst.StateChangeReturn.ASYNC:
+        bus = playbin.get_bus()
+        bus.poll(Gst.MessageType.EOS, Gst.CLOCK_TIME_NONE)
+        playbin.set_state(Gst.State.NULL)
+    else:
+        logger.exception("qtools.play_sound failed with file: {0}".format(path))
 
 
 ALIGNMENTS = {
