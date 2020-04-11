@@ -262,7 +262,7 @@ class Server(configurable.Configurable):
             popup.set_border(self.border[urgency])
         popup.place()
         popup.unhide()
-        popup.draw_window()
+        popup.draw()
         popup.replaces_id = notif.replaces_id
         if icon:
             popup.horizontal_padding = self.horizontal_padding

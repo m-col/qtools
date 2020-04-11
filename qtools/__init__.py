@@ -224,7 +224,7 @@ class Popup(configurable.Configurable):
             y or self.vertical_padding,
         )
 
-    def draw_window(self):
+    def draw(self):
         self.drawer.draw()
 
     def place(self):
