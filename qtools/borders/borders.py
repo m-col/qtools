@@ -13,11 +13,13 @@ Example usage:
 from libqtile.log_utils import logger
 from libqtile.backend.x11 import xcbq
 
+from .cde import cde
 from .frame import frame
 
 
 _style_map = {
     'frame': frame,
+    'cde': cde,
 }
 
 
@@ -35,6 +37,7 @@ def enable(style):
         A string specifying which style to use.
 
     """
+    style = style.lower()
     if style not in _style_map:
         logger.exception("qtools.borders: style {0} not found.".format(style))
         return
