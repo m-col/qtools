@@ -5,6 +5,7 @@ Qtile helper to get X resources from the root window.
 
 import xcffib
 import xcffib.xproto
+from libqtile.log_utils import logger
 
 
 def get(DISPLAY, defaults=None):
@@ -28,10 +29,13 @@ def get(DISPLAY, defaults=None):
         '*.' stripped.
 
     """
+    resources = defaults if defaults else {}
+
     try:
         conn = xcffib.connect(display=DISPLAY)
-    except xcffib.ConnectionException:
-        return defaults if defaults else {}
+    except xcffib.ConnectionException as e:
+        logger.exception(e)
+        return resources
 
     root = conn.get_setup().roots[0].root
     atom = conn.core.InternAtom(False, 16, 'RESOURCE_MANAGER').reply().atom
@@ -45,7 +49,6 @@ def get(DISPLAY, defaults=None):
 
     resource_string = reply.value.buf().decode("utf-8")
     resource_list = filter(None, resource_string.split('\n'))
-    resources = {}
 
     for resource in resource_list:
         key, value = resource.split(':\t')
