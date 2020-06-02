@@ -31,10 +31,13 @@ def get(DISPLAY=None, defaults=None):
         '*.' stripped.
 
     """
-    resources = defaults if defaults else {}
-
     if DISPLAY is None:
         DISPLAY = os.environ.get("DISPLAY")
+
+    if defaults is None:
+        resources = {}
+    else:
+        resources = defaults
 
     try:
         conn = xcffib.connect(display=DISPLAY)
