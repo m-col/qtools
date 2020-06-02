@@ -3,19 +3,21 @@ Qtile helper to get X resources from the root window.
 """
 
 
+import os
+
 import xcffib
 import xcffib.xproto
 from libqtile.log_utils import logger
 
 
-def get(DISPLAY, defaults=None):
+def get(DISPLAY=None, defaults=None):
     """
     Get the X resources in an X servers resource manager.
 
     Parameters
     ==========
-    DISPLAY : str
-        DISPLAY name to query.
+    DISPLAY : str (optional)
+        DISPLAY name to query. This will be taken from the environment if not specified.
 
     defaults : dict (optional)
         Default values to act as a fallback for missing values or in the event of a
@@ -30,6 +32,9 @@ def get(DISPLAY, defaults=None):
 
     """
     resources = defaults if defaults else {}
+
+    if DISPLAY is None:
+        DISPLAY = os.environ.get("DISPLAY")
 
     try:
         conn = xcffib.connect(display=DISPLAY)
