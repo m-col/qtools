@@ -4,7 +4,16 @@ move window focus to the first window in that general direction. Focussing is ba
 entirely on position and geometry, so is independent of screens, layouts and whether
 windows are floating or tiled.
 
-Example usage: binding a key to lazy.function(qtools.focus.right)
+Example usage:
+
+    import qtools.focus
+    keys.extend([EzKey(k, v) for k, v in {
+        'M-k': lazy.function(qtools.focus.up)
+        'M-j': lazy.function(qtools.focus.down)
+        'M-h': lazy.function(qtools.focus.left)
+        'M-l': lazy.function(qtools.focus.right)
+    }.items()])
+
 """
 
 
