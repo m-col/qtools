@@ -1,8 +1,8 @@
 """
-This plugin exposes four functions - up, down, left and right - that when called will
+This plugin exports four functions - up, down, left and right - that when called will
 move window focus to the first window in that general direction. Focussing is based
 entirely on position and geometry, so is independent of screens, layouts and whether
-windows are floating or tiled.
+windows are floating or tiled. It can also move focus to and from empty screens.
 
 Example usage:
 
@@ -15,6 +15,9 @@ Example usage:
     }.items()])
 
 """
+
+
+from libqtile.config import Screen
 
 
 def up(qtile):
@@ -38,27 +41,35 @@ def _focus_window(qtile, dir, axis):
     win_wide = None
     dist = 10000
     dist_wide = 10000
+    cur = qtile.current_window
+    if not cur:
+        cur = qtile.current_screen
 
     if axis == 'x':
         dim = 'width'
         band_axis = 'y'
         band_dim = 'height'
-        cur_pos, band_min, _, band_max = qtile.current_window.edges
+        cur_pos = cur.x
+        band_min = cur.y
+        band_max = cur.y + cur.height
     else:
         dim = 'height'
         band_axis = 'x'
         band_dim = 'width'
-        band_min, cur_pos, band_max, _ = qtile.current_window.edges
+        band_min = cur.x
+        cur_pos = cur.y
+        band_max = cur.x + cur.width
 
-    cur_pos += getattr(qtile.current_window, dim) / 2
+    cur_pos += getattr(cur, dim) / 2
 
     windows = [w for g in qtile.groups if g.screen for w in g.windows]
+    windows.extend([s for s in qtile.screens if not s.group.windows])
 
-    if qtile.current_window in windows:
-        windows.remove(qtile.current_window)
+    if cur in windows:
+        windows.remove(cur)
 
     for w in windows:
-        if not w.minimized:
+        if isinstance(w, Screen) or not w.minimized:
             pos = getattr(w, axis) + getattr(w, dim) / 2
             gap = dir * (pos - cur_pos)
             if gap > 0:
@@ -77,4 +88,5 @@ def _focus_window(qtile, dir, axis):
     if win:
         qtile.focus_screen(win.group.screen.index)
         win.group.focus(win, True)
-        win.focus(False)
+        if not isinstance(win, Screen):
+            win.focus(False)
