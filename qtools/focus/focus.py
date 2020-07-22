@@ -18,6 +18,7 @@ Example usage:
 
 
 from libqtile.config import Screen
+from xcffib.xproto import StackMode
 
 
 def up(qtile):
@@ -89,4 +90,5 @@ def _focus_window(qtile, dir, axis):
         qtile.focus_screen(win.group.screen.index)
         win.group.focus(win, True)
         if not isinstance(win, Screen):
+            win.window.configure(stackmode=StackMode.Above)
             win.focus(False)
