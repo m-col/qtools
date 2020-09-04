@@ -73,7 +73,7 @@ def _focus_window(qtile, dir, axis):
         if isinstance(w, Screen) or not w.minimized:
             pos = getattr(w, axis) + getattr(w, dim) / 2
             gap = dir * (pos - cur_pos)
-            if gap > 0:
+            if gap > 5:
                 band_pos = getattr(w, band_axis) + getattr(w, band_dim) / 2
                 if band_min < band_pos < band_max:
                     if gap < dist:
