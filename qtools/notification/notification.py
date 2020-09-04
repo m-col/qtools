@@ -14,12 +14,11 @@ Example usage:
 """
 
 
-from libqtile import configurable, hook, images, pangocffi
+from libqtile import configurable, hook, images, pangocffi, qtile
 from libqtile.lazy import lazy
 from libqtile.log_utils import logger
 from libqtile.notify import notifier
-
-from qtools import Popup
+from libqtile.popup import Popup
 
 
 class Server(configurable.Configurable):
@@ -100,13 +99,12 @@ class Server(configurable.Configurable):
         ('fullscreen', 'show', 'What to do when in fullscreen: show, hide, or queue.'),
         ('screen', 'focus', 'How to select a screen: focus, mouse, or an int.'),
     ]
-    capabilities = {'body', 'body-markup'}
+    capabilities = {'body', 'body-markup', 'actions'}
     # specification: https://developer.gnome.org/notification-spec/
 
     def __init__(self, **config):
         configurable.Configurable.__init__(self, **config)
         self.add_defaults(Server.defaults)
-        self.qtile = None
         self._hidden = []
         self._shown = []
         self._queue = []
@@ -139,13 +137,11 @@ class Server(configurable.Configurable):
         if not isinstance(value, (tuple, list)):
             setattr(self, attr, (value,) * 3)
 
-    def configure(self, qtile):
+    def configure(self):
         """
         This method needs to be called to set up the Server with the Qtile manager and
         create the required popup windows.
         """
-        self.qtile = qtile
-
         if self.horizontal_padding is None:
             self.horizontal_padding = self.font_size / 2
         if self.vertical_padding is None:
@@ -162,7 +158,7 @@ class Server(configurable.Configurable):
                     popup_config[key] = value
 
         for win in range(self.max_windows):
-            popup = Popup(self.qtile, **popup_config)
+            popup = Popup(qtile, **popup_config)
             popup.win.handle_ButtonPress = self._buttonpress(popup)
             popup.replaces_id = None
             self._hidden.append(popup)
@@ -188,7 +184,7 @@ class Server(configurable.Configurable):
             self._queue.append(notif)
             return
 
-        if self.qtile.current_window and self.qtile.current_window.fullscreen:
+        if qtile.current_window and qtile.current_window.fullscreen:
             if self.fullscreen != 'show':
                 if self.fullscreen == 'queue':
                     if self._unfullscreen not in hook.subscriptions:
@@ -213,7 +209,7 @@ class Server(configurable.Configurable):
         """
         Begin displaying of queue notifications after leaving fullscreen.
         """
-        if not self.qtile.current_window.fullscreen:
+        if not qtile.current_window.fullscreen:
             hook.unsubscribe.float_change(self._unfullscreen)
             self._renotify()
 
@@ -273,9 +269,7 @@ class Server(configurable.Configurable):
         elif timeout < 0:
             timeout = self.timeout[urgency]
         if timeout > 0:
-            self.qtile.call_later(
-                timeout / 1000, self._close, popup, self._current_id
-            )
+            qtile.call_later(timeout / 1000, self._close, popup, self._current_id)
 
     def _get_text(self, notif):
         summary = ''
@@ -292,11 +286,11 @@ class Server(configurable.Configurable):
     def _get_coordinates(self):
         x, y = self._positions[len(self._shown) - 1]
         if isinstance(self.screen, int):
-            screen = self.qtile.screens[self.screen]
+            screen = qtile.screens[self.screen]
         elif self.screen == 'focus':
-            screen = self.qtile.current_screen
+            screen = qtile.current_screen
         elif self.screen == 'mouse':
-            screen = self.qtile.find_screen(*self.qtile.mouse_position)
+            screen = qtile.find_screen(*qtile.mouse_position)
         return x + screen.x, y + screen.y
 
     def _close(self, popup, nid=None):
