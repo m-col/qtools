@@ -64,8 +64,10 @@ class HabitTracker(base._Widget):
     def __init__(self, **config):
         base._Widget.__init__(self, bar.CALCULATED, **config)
         self.add_defaults(HabitTracker.defaults)
-        self._chain = self._load_chain()
+        self._chain = None
         self._block_size = 0
+
+        self._load_chain()
 
         if not hasattr(self, "draw_{0}".format(self.style)):
             logger.warning("HabitTracker style '{0}' invalid.".format(self.style))
@@ -79,14 +81,15 @@ class HabitTracker(base._Widget):
             self.mouse_callbacks.update({'Button3': self.cmd_decrement})
 
     def _load_chain(self):
-        if not os.path.isfile(self.chain_file):
-            return 0
-        with open(self.chain_file, 'r') as fd:
-            cache = json.load(fd)
-            if self.habit not in cache.keys():
-                return 0
-            start_date = datetime.strptime(cache.get(self.habit), "%Y-%m-%d")
-            return (datetime.now() - start_date).days
+        if os.path.isfile(self.chain_file):
+            with open(self.chain_file, 'r') as fd:
+                cache = json.load(fd)
+            if self.habit in cache.keys():
+                start_date = datetime.strptime(cache.get(self.habit), "%Y-%m-%d")
+                self._chain = (datetime.now() - start_date).days
+                return
+        self._chain = 0
+        self._save_chain()
 
     def _save_chain(self):
         cache = {}
