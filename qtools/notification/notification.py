@@ -82,10 +82,10 @@ class Server(configurable.Configurable):
         ('border_width', 4, 'Line width of drawn borders.'),
         ('corner_radius', None, 'Corner radius for round corners, or None.'),
         ('font', 'sans', 'Font used in notifications.'),
-        ('fontsize', 14, 'Size of font.'),
+        ('font_size', 14, 'Size of font.'),
         ('fontshadow', None, 'Color for text shadows, or None for no shadows.'),
         ('text_alignment', 'left', 'Text alignment: left, center or right.'),
-        ('horizonal_padding', None, 'Padding at sides of text.'),
+        ('horizontal_padding', None, 'Padding at sides of text.'),
         ('vertical_padding', None, 'Padding at top and bottom of text.'),
         ('line_spacing', 4, 'Space between lines.'),
         (
@@ -147,11 +147,9 @@ class Server(configurable.Configurable):
         self.qtile = qtile
 
         if self.horizontal_padding is None:
-            self.horizontal_padding = self.fontsize / 2
+            self.horizontal_padding = self.font_size / 2
         if self.vertical_padding is None:
-            self.vertical_padding = self.fontsize / 2
-        if self.border_width:
-            self.border = [self.qtile.color_pixel(c) for c in self.border]
+            self.vertical_padding = self.font_size / 2
 
         popup_config = {}
         for opt in Popup.defaults:
