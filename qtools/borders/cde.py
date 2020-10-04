@@ -7,7 +7,7 @@ import functools
 import xcffib
 
 
-def cde(self, inner_w, inner_h, borderwidths, bordercolors):
+def cde(self, colors, borderwidth, width, height):
     """
     The "CDE" style is based on the window decorations used by the Common Desktop
     Environment, and has a 3D bevelled look.
@@ -25,43 +25,51 @@ def cde(self, inner_w, inner_h, borderwidths, bordercolors):
      |__|________|__|
 
     """
-    if len(bordercolors) < 3:
-        self.set_attribute(borderpixel=bordercolors[0])
+    if not colors or not borderwidth:
         return
 
+    if isinstance(colors, str):
+        self.set_attribute(borderpixel=self.conn.color_pixel(colors))
+        return
+
+    if len(colors) < 3:
+        self.set_attribute(borderpixel=self.conn.color_pixel(colors[0]))
+        return
+
+    colors = [self.conn.color_pixel(c) for c in colors]
     core = self.conn.conn.core
-    self.borderwidth = borderwidth = sum(borderwidths)
-    outer_w = inner_w + borderwidth * 2
-    outer_h = inner_h + borderwidth * 2
-
+    outer_w = width + borderwidth * 2
+    outer_h = height + borderwidth * 2
     pixmap = self.conn.conn.generate_id()
-    core.CreatePixmap(
-        self.conn.default_screen.root_depth, pixmap, self.wid, outer_w, outer_h
-    )
     gc = self.conn.conn.generate_id()
-    core.CreateGC(gc, pixmap, xcffib.xproto.GC.Foreground, [bordercolors[2]])
-    rect = xcffib.xproto.RECTANGLE.synthetic(0, 0, outer_w, outer_h)
-    core.PolyFillRectangle(pixmap, gc, 1, [rect])
 
-    core.ChangeGC(gc, xcffib.xproto.GC.Foreground, [bordercolors[1]])
-    rect = xcffib.xproto.RECTANGLE.synthetic(2, 2, outer_w - 4, outer_h - 4)
-    core.PolyFillRectangle(pixmap, gc, 1, [rect])
+    try:
+        core.CreatePixmap(
+            self.conn.default_screen.root_depth, pixmap, self.wid, outer_w, outer_h
+        )
+        core.CreateGC(gc, pixmap, xcffib.xproto.GC.Foreground, [colors[2]])
+        rect = xcffib.xproto.RECTANGLE.synthetic(0, 0, outer_w, outer_h)
+        core.PolyFillRectangle(pixmap, gc, 1, [rect])
 
-    core.ChangeGC(gc, xcffib.xproto.GC.Foreground, [bordercolors[0]])
-    rect = xcffib.xproto.RECTANGLE.synthetic(
-        borderwidth - 1, borderwidth - 1, inner_w + 2, inner_h + 2
-    )
-    core.PolyFillRectangle(pixmap, gc, 1, [rect])
+        core.ChangeGC(gc, xcffib.xproto.GC.Foreground, [colors[1]])
+        rect = xcffib.xproto.RECTANGLE.synthetic(2, 2, outer_w - 4, outer_h - 4)
+        core.PolyFillRectangle(pixmap, gc, 1, [rect])
 
-    shadows, light = _lines(borderwidth, outer_w, outer_h)
-    core.PolyLine(0, pixmap, gc, 18, shadows)
-    core.ChangeGC(gc, xcffib.xproto.GC.Foreground, [bordercolors[2]])
-    core.PolyLine(0, pixmap, gc, 15, light)
+        core.ChangeGC(gc, xcffib.xproto.GC.Foreground, [colors[0]])
+        rect = xcffib.xproto.RECTANGLE.synthetic(
+            borderwidth - 1, borderwidth - 1, width + 2, height + 2
+        )
+        core.PolyFillRectangle(pixmap, gc, 1, [rect])
 
-    self.set_borderpixmap(pixmap, gc, outer_w, outer_h)
-    core.FreePixmap(pixmap)
-    core.FreeGC(gc)
-    return
+        shadows, light = _lines(borderwidth, outer_w, outer_h)
+        core.PolyLine(0, pixmap, gc, 18, shadows)
+        core.ChangeGC(gc, xcffib.xproto.GC.Foreground, [colors[2]])
+        core.PolyLine(0, pixmap, gc, 15, light)
+        self.set_borderpixmap(pixmap, gc, borderwidth, width, height)
+
+    finally:
+        core.FreePixmap(pixmap)
+        core.FreeGC(gc)
 
 
 @functools.lru_cache()

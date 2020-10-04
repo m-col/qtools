@@ -30,6 +30,7 @@ def enable(style):
     Available styles:
 
         - frame
+        - CDE
 
     Parameters
     ----------
@@ -38,9 +39,7 @@ def enable(style):
 
     """
     style = style.lower()
-    if style not in _style_map:
-        logger.exception("qtools.borders: style {0} not found.".format(style))
-        return
-
-    xcbq.Window.paint_borders = _style_map[style]
-    return
+    if style in _style_map:
+        xcbq.Window.paint_borders = _style_map[style]
+    else:
+        logger.exception("qtools.borders: style {} not found.".format(style))
